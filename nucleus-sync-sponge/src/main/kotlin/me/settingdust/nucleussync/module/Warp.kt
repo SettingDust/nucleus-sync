@@ -1,4 +1,4 @@
-package org.spongepowered.nucleussync.module
+package me.settingdust.nucleussync.module
 
 import com.flowpowered.math.vector.Vector3d
 import com.google.inject.Inject
@@ -26,11 +26,11 @@ import org.spongepowered.api.text.Text
 import org.spongepowered.api.text.serializer.TextSerializers
 import org.spongepowered.api.world.Location
 import org.spongepowered.api.world.TeleportHelper
-import org.spongepowered.nucleussync.Warps
-import org.spongepowered.nucleussync.core.BungeeChannel
-import org.spongepowered.nucleussync.core.sendTo
-import org.spongepowered.nucleussync.core.writePluginChannel
-import org.spongepowered.nucleussync.pluginName
+import me.settingdust.nucleussync.Warps
+import me.settingdust.nucleussync.core.BungeeChannel
+import me.settingdust.nucleussync.core.sendTo
+import me.settingdust.nucleussync.core.writePluginChannel
+import me.settingdust.nucleussync.pluginName
 import java.util.*
 
 @Suppress("UnstableApiUsage")

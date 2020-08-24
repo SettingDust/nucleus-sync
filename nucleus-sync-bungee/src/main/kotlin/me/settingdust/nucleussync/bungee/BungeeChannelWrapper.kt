@@ -1,6 +1,6 @@
 @file:Suppress("UnstableApiUsage")
 
-package org.spongepowered.nucleussync.bungee
+package me.settingdust.nucleussync.bungee
 
 import com.google.common.io.ByteArrayDataInput
 import com.google.common.io.ByteArrayDataOutput

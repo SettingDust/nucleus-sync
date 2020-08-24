@@ -1,4 +1,4 @@
-package org.spongepowered.nucleussync.module
+package me.settingdust.nucleussync.module
 
 import com.google.inject.Inject
 import com.google.inject.Injector
@@ -9,8 +9,8 @@ import me.settingdust.laven.present
 import org.spongepowered.api.event.EventManager
 import org.spongepowered.api.event.game.state.GamePostInitializationEvent
 import org.spongepowered.api.plugin.PluginContainer
-import org.spongepowered.nucleussync.config.ConfigMain
-import org.spongepowered.nucleussync.core.DatabaseService
+import me.settingdust.nucleussync.config.ConfigMain
+import me.settingdust.nucleussync.core.DatabaseService
 
 @ExperimentalCoroutinesApi
 @Singleton

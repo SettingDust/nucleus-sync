@@ -1,4 +1,4 @@
-package org.spongepowered.nucleussync.core
+package me.settingdust.nucleussync.core
 
 import com.google.inject.Inject
 import com.google.inject.Singleton
@@ -10,7 +10,7 @@ import org.spongepowered.api.event.game.state.GamePreInitializationEvent
 import org.spongepowered.api.plugin.PluginContainer
 import org.spongepowered.api.service.ServiceManager
 import org.spongepowered.api.service.sql.SqlService
-import org.spongepowered.nucleussync.config.ConfigMain
+import me.settingdust.nucleussync.config.ConfigMain
 
 @Singleton
 @ExperimentalCoroutinesApi

@@ -1,4 +1,4 @@
-package org.spongepowered.nucleussync.bungee
+package me.settingdust.nucleussync.bungee
 
 import com.google.common.io.ByteStreams
 import com.zaxxer.hikari.HikariConfig
@@ -26,9 +26,9 @@ import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.transactions.transaction
-import org.spongepowered.nucleussync.Homes
-import org.spongepowered.nucleussync.SyncedCommands
-import org.spongepowered.nucleussync.Warps
+import me.settingdust.nucleussync.Homes
+import me.settingdust.nucleussync.SyncedCommands
+import me.settingdust.nucleussync.Warps
 import java.io.File
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets.UTF_8

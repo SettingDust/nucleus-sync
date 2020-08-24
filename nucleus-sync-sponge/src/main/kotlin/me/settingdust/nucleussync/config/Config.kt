@@ -1,6 +1,6 @@
 @file:Suppress("UnstableApiUsage")
 
-package org.spongepowered.nucleussync.config
+package me.settingdust.nucleussync.config
 
 import com.google.common.reflect.TypeToken
 import com.google.inject.Inject
@@ -24,7 +24,7 @@ import org.spongepowered.api.config.DefaultConfig
 import org.spongepowered.api.event.EventManager
 import org.spongepowered.api.event.game.state.GameLoadCompleteEvent
 import org.spongepowered.api.plugin.PluginContainer
-import org.spongepowered.nucleussync.core.DatabaseService
+import me.settingdust.nucleussync.core.DatabaseService
 import java.io.Closeable
 import java.nio.file.Path
 

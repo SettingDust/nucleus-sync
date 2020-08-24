@@ -1,10 +1,10 @@
-package org.spongepowered.nucleussync
+package me.settingdust.nucleussync
 
 import com.google.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import org.spongepowered.api.plugin.Dependency
 import org.spongepowered.api.plugin.Plugin
-import org.spongepowered.nucleussync.module.Modules
+import me.settingdust.nucleussync.module.Modules
 
 const val pluginId = "nucleus-sync"
 const val pluginName = "Nucleus Sync"

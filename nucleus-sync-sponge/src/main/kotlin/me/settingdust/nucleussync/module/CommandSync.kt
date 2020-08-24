@@ -1,4 +1,4 @@
-package org.spongepowered.nucleussync.module
+package me.settingdust.nucleussync.module
 
 import com.google.inject.Inject
 import com.google.inject.Singleton
@@ -16,11 +16,11 @@ import org.spongepowered.api.event.EventManager
 import org.spongepowered.api.event.command.SendCommandEvent
 import org.spongepowered.api.network.ChannelBuf
 import org.spongepowered.api.plugin.PluginContainer
-import org.spongepowered.nucleussync.config.ConfigMain
-import org.spongepowered.nucleussync.core.BungeeChannel
-import org.spongepowered.nucleussync.core.sendTo
-import org.spongepowered.nucleussync.core.writePluginChannel
-import org.spongepowered.nucleussync.pluginName
+import me.settingdust.nucleussync.config.ConfigMain
+import me.settingdust.nucleussync.core.BungeeChannel
+import me.settingdust.nucleussync.core.sendTo
+import me.settingdust.nucleussync.core.writePluginChannel
+import me.settingdust.nucleussync.pluginName
 
 @Suppress("UnstableApiUsage")
 @ExperimentalCoroutinesApi

@@ -16,7 +16,7 @@ val patch = 0
 
 val mainVersion = arrayOf(major, minor, patch).joinToString(".")
 
-group = "org.spongepowered"
+group = "me.settingdust"
 version = {
     var version = mainVersion
     val suffix = mutableListOf("")

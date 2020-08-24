@@ -1,4 +1,4 @@
-package org.spongepowered.nucleussync
+package me.settingdust.nucleussync
 
 import org.jetbrains.exposed.dao.id.IdTable
 import org.jetbrains.exposed.dao.id.IntIdTable
