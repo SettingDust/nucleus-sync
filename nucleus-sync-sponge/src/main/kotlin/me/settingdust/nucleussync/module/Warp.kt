@@ -5,6 +5,7 @@ import com.google.inject.Inject
 import com.google.inject.Singleton
 import io.github.nucleuspowered.nucleus.api.NucleusAPI
 import io.github.nucleuspowered.nucleus.api.events.NucleusWarpEvent
+import io.github.nucleuspowered.nucleus.api.nucleusdata.Warp
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -28,6 +29,7 @@ import me.settingdust.nucleussync.Warps
 import me.settingdust.nucleussync.core.PluginChannel
 import me.settingdust.nucleussync.core.sendTo
 import me.settingdust.nucleussync.pluginName
+import org.spongepowered.api.scheduler.Task
 import java.util.*
 
 @Suppress("UnstableApiUsage")
@@ -46,8 +48,8 @@ class ModuleWarp @Inject constructor(
     init {
         this.pluginChannel.addListener(Platform.Type.SERVER) { data, _, _ ->
             data.resetRead()
-            data.takeIf { data.readString() == pluginName }?.let {
-                when (data.readString()) {
+            data.let {
+                when (data.readUTF()) {
                     PacketWarpCreate.channel -> {
                         PacketWarpCreate(data)
                             .apply {
@@ -57,6 +59,9 @@ class ModuleWarp @Inject constructor(
                                 warpService.setWarpCost(name, cost ?: 0.0)
                             }
                     }
+                    PacketWarpDelete.channel -> {
+                        PacketWarpDelete(data).apply { warpService.removeWarp(name) }
+                    }
                     PacketWarpUse.channel -> {
                         PacketWarpUse(data).apply {
                             warpService.getWarp(name).ifPresent { warp ->
@@ -64,8 +69,10 @@ class ModuleWarp @Inject constructor(
                                     .flatMap { teleportHelper.getSafeLocation(it) }
                                     .ifPresent { location ->
                                         serviceManager.provideUnchecked(UserStorageService::class.java)[playerUuid].ifPresent { user ->
-                                            user.setLocation(location.position, location.extent.uniqueId)
-                                            user.rotation = warp.rotation
+                                            Task.builder().execute { ->
+                                                user.setLocation(location.position, location.extent.uniqueId)
+                                                user.rotation = warp.rotation
+                                            }.submit(pluginContainer)
                                         }
                                     }
                             }
@@ -100,7 +107,7 @@ class ModuleWarp @Inject constructor(
     }
 
     private fun onDeleteWarp(event: NucleusWarpEvent.Delete) {
-        event.apply { GlobalScope.launch { transaction { Warps.apply { deleteWhere { id eq name } } } } }
+        event.apply { pluginChannel.sendTo { it.writePacket(PacketWarpDelete(name)) } }
     }
 
     private fun onUseWarp(event: NucleusWarpEvent.Use) {
@@ -137,6 +144,23 @@ data class PacketWarpCreate(
         channelBuf.writeUTF(if (description != null) TextSerializers.JSON.serialize(description) else "")
         channelBuf.writeUTF(category ?: "")
         channelBuf.writeDouble(cost ?: 0.0)
+    }
+}
+
+data class PacketWarpDelete(
+    val name: String
+) : Packet {
+    companion object {
+        const val channel = "WarpDelete"
+    }
+
+    constructor(channelBuf: ChannelBuf) : this(
+        channelBuf.readUTF()
+    )
+
+    override fun write(channelBuf: ChannelBuf) {
+        channelBuf.writeUTF(channel)
+        channelBuf.writeUTF(name)
     }
 }
 

@@ -31,6 +31,24 @@ data class PacketWarpCreate(
     }
 }
 
+data class PacketWarpDelete(
+    val name: String
+) : Packet {
+    companion object {
+        const val channel = "WarpDelete"
+    }
+
+    constructor(input: ByteArrayDataInput) : this(
+        input.readUTF()
+    )
+
+    override fun write(out: ByteArrayDataOutput): ByteArrayDataOutput {
+        out.writeUTF(channel)
+        out.writeUTF(name)
+        return out
+    }
+}
+
 data class PacketWarpUse(
     val name: String,
     val playerUuid: UUID

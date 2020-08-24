@@ -24,7 +24,10 @@ import org.spongepowered.api.world.TeleportHelper
 import me.settingdust.nucleussync.Homes
 import me.settingdust.nucleussync.core.PluginChannel
 import me.settingdust.nucleussync.core.sendTo
-import me.settingdust.nucleussync.pluginName
+import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.transactions.transaction
+import org.spongepowered.api.event.filter.type.Include
+import org.spongepowered.api.scheduler.Task
 import java.util.*
 
 @Singleton
@@ -42,10 +45,10 @@ class ModuleHome @ExperimentalCoroutinesApi @Inject constructor(
     init {
         channel.addListener(Platform.Type.SERVER) { data, _, _ ->
             data.resetRead()
-            data.takeIf { data.readString() == pluginName }?.let {
-                when (data.readString()) {
+            data.let {
+                when (data.readUTF()) {
                     PacketHomeCreate.channel -> {
-                        PacketHomeCreate(data)
+                        PacketHome(data)
                             .apply {
                                 homeService.createHome(
                                     causeStackManager.currentCause,
@@ -56,15 +59,29 @@ class ModuleHome @ExperimentalCoroutinesApi @Inject constructor(
                                 )
                             }
                     }
-                    PacketWarpUse.channel -> {
-                        PacketHomeUse(data).apply {
+                    PacketHomeDelete.channel -> {
+                        PacketHome(data)
+                            .apply {
+                                homeService.createHome(
+                                    causeStackManager.currentCause,
+                                    playerUuid,
+                                    name,
+                                    Location(Sponge.getServer().worlds.first(), 0, 0, 0),
+                                    Vector3d.UP
+                                )
+                            }
+                    }
+                    PacketHomeUse.channel -> {
+                        PacketHome(data).apply {
                             homeService.getHome(playerUuid, name).ifPresent { home ->
                                 home.location
                                     .flatMap { teleportHelper.getSafeLocation(it) }
                                     .ifPresent { location ->
                                         serviceManager.provideUnchecked(UserStorageService::class.java)[playerUuid].ifPresent { user ->
-                                            user.setLocation(location.position, location.extent.uniqueId)
-                                            user.rotation = home.rotation
+                                            Task.builder().execute { ->
+                                                user.setLocation(location.position, location.extent.uniqueId)
+                                                user.rotation = home.rotation
+                                            }.submit(pluginContainer)
                                         }
                                     }
                             }
@@ -74,12 +91,13 @@ class ModuleHome @ExperimentalCoroutinesApi @Inject constructor(
             }
         }
 
-        eventManager.registerListener(pluginContainer, NucleusHomeEvent.Create::class.java, this::onCreateHome)
+        eventManager.registerListener(pluginContainer, NucleusHomeEvent::class.java, this::onCreateHome)
         eventManager.registerListener(pluginContainer, NucleusHomeEvent.Delete::class.java, this::onDeleteHome)
         eventManager.registerListener(pluginContainer, NucleusHomeEvent.Use::class.java, this::onUseHome)
     }
 
-    private fun onCreateHome(event: NucleusHomeEvent.Create) {
+    @Include(NucleusHomeEvent.Create::class, NucleusHomeEvent.Modify::class)
+    private fun onCreateHome(event: NucleusHomeEvent) {
         event.apply {
             GlobalScope.launch {
                 homeService.getHome(user, name).ifPresent { home ->
@@ -97,25 +115,21 @@ class ModuleHome @ExperimentalCoroutinesApi @Inject constructor(
     }
 
     private fun onDeleteHome(event: NucleusHomeEvent.Delete) {
-        event.apply { Homes.apply { deleteWhere { id eq name } } }
+        event.apply { channel.sendTo { it.writePacket(PacketHomeDelete(name, home.ownersUniqueId)) } }
     }
 
     private fun onUseHome(event: NucleusHomeEvent.Use) {
         event.apply {
-            channel.sendTo {
-                it.writePacket(PacketHomeUse(name, targetUser.uniqueId))
-            }
+            channel.sendTo { it.writePacket(PacketHomeUse(name, home.ownersUniqueId)) }
         }
     }
 }
 
-data class PacketHomeCreate(
+open class PacketHome(
     val name: String,
     val playerUuid: UUID
 ) : Packet {
-    companion object {
-        const val channel = "HomeCreate"
-    }
+    open val channelName = ""
 
     constructor(channelBuf: ChannelBuf) : this(
         channelBuf.readUTF(),
@@ -123,28 +137,42 @@ data class PacketHomeCreate(
     )
 
     override fun write(channelBuf: ChannelBuf) {
-        channelBuf.writeUTF(channel)
+        channelBuf.writeUTF(this.channelName)
         channelBuf.writeUTF(name)
         channelBuf.writeUniqueId(playerUuid)
     }
 }
 
-data class PacketHomeUse(
-    val name: String,
-    val playerUuid: UUID
-) : Packet {
+class PacketHomeCreate(
+    name: String,
+    playerUuid: UUID
+) : PacketHome(name, playerUuid) {
+    companion object {
+        const val channel = "HomeCreate"
+    }
+
+    override val channelName: String
+        get() = channel
+}
+
+class PacketHomeDelete(
+    name: String,
+    playerUuid: UUID
+) : PacketHome(name, playerUuid) {
+    companion object {
+        const val channel = "HomeDelete"
+    }
+    override val channelName: String
+        get() = channel
+}
+
+class PacketHomeUse(
+    name: String,
+    playerUuid: UUID
+) : PacketHome(name, playerUuid) {
     companion object {
         const val channel = "HomeUse"
     }
-
-    constructor(channelBuf: ChannelBuf) : this(
-        channelBuf.readUTF(),
-        channelBuf.readUniqueId()
-    )
-
-    override fun write(channelBuf: ChannelBuf) {
-        channelBuf.writeUTF(channel)
-        channelBuf.writeUTF(name)
-        channelBuf.writeUniqueId(playerUuid)
-    }
+    override val channelName: String
+        get() = channel
 }
