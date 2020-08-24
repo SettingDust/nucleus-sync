@@ -31,6 +31,25 @@ repositories {
 }
 
 dependencies {
+    val kotlinVersion = "1.4.0"
+    val kotlinReflect = "org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion"
+    api(kotlinReflect)
+    shadow(kotlinReflect)
+
+    val exposeVersion = "0.26.2"
+    api("org.jetbrains.exposed", "exposed-core", exposeVersion) {
+        exclude("org.jetbrains.kotlin")
+    }
+    api("org.jetbrains.exposed", "exposed-dao", exposeVersion) {
+        exclude("org.jetbrains.kotlin")
+    }
+    api("org.jetbrains.exposed", "exposed-jdbc", exposeVersion)
+    api("org.jetbrains.exposed", "exposed-jodatime", exposeVersion)
+    shadow("org.jetbrains.exposed", "exposed-core", exposeVersion)
+    shadow("org.jetbrains.exposed", "exposed-dao", exposeVersion)
+    shadow("org.jetbrains.exposed", "exposed-jdbc", exposeVersion)
+    shadow("org.jetbrains.exposed", "exposed-jodatime", exposeVersion)
+
     api("net.md-5:bungeecord-api:1.12-SNAPSHOT")
 
     shadow("com.h2database:h2:1.4.200")
