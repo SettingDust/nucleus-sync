@@ -1,0 +1,2 @@
+database:
+  url: jdbc:mysql://root:password@localhost:3306/nucleussync

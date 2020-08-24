@@ -1,0 +1,4 @@
+name: NucleusSync
+main: org.spongepowered.nucleussync.bungee.NucleusSync
+version: "1.0"
+author: SettingDust

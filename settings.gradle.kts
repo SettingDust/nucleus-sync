@@ -3,8 +3,6 @@ includeBuild("laven-sponge/laven") // For exclude gradle plugin
 
 pluginManagement {
     repositories {
-        maven("https://dl.bintray.com/kotlin/kotlin-eap")
-
         mavenCentral()
 
         maven("https://plugins.gradle.org/m2/")
@@ -12,3 +10,5 @@ pluginManagement {
 }
 
 rootProject.name = "nucleus-sync"
+include("nucleus-sync-bungee")
+include("nucleus-sync-sponge")
