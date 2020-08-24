@@ -9,6 +9,10 @@ import me.settingdust.laven.sponge.Packet
 import me.settingdust.laven.sponge.typeTokenOf
 import me.settingdust.laven.sponge.writePacket
 import me.settingdust.laven.unwrap
+import me.settingdust.nucleussync.config.ConfigMain
+import me.settingdust.nucleussync.core.PluginChannel
+import me.settingdust.nucleussync.core.sendTo
+import me.settingdust.nucleussync.pluginName
 import org.spongepowered.api.Platform
 import org.spongepowered.api.Sponge
 import org.spongepowered.api.command.CommandManager
@@ -16,23 +20,18 @@ import org.spongepowered.api.event.EventManager
 import org.spongepowered.api.event.command.SendCommandEvent
 import org.spongepowered.api.network.ChannelBuf
 import org.spongepowered.api.plugin.PluginContainer
-import me.settingdust.nucleussync.config.ConfigMain
-import me.settingdust.nucleussync.core.BungeeChannel
-import me.settingdust.nucleussync.core.sendTo
-import me.settingdust.nucleussync.core.writePluginChannel
-import me.settingdust.nucleussync.pluginName
 
 @Suppress("UnstableApiUsage")
 @ExperimentalCoroutinesApi
 @Singleton
 class ModuleCommandSync @Inject constructor(
     eventManager: EventManager,
-    bungeeChannel: BungeeChannel,
+    pluginChannel: PluginChannel,
     pluginContainer: PluginContainer,
     private val configMain: ConfigMain,
     private val commandManager: CommandManager
 ) {
-    private val channel = bungeeChannel.channel
+    private val channel = pluginChannel.channel
 
     init {
         GlobalScope.launch {
@@ -85,7 +84,6 @@ class ModuleCommandSync @Inject constructor(
         event.apply {
             if (configMain.model.commandSync.contains(command)) {
                 channel.sendTo {
-                    it.writePluginChannel()
                     it.writePacket(PacketCommandSync(command, arguments))
                 }
             }

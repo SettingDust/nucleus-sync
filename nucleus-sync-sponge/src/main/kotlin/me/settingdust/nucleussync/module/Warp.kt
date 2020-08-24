@@ -11,8 +11,6 @@ import kotlinx.coroutines.launch
 import me.settingdust.laven.sponge.Packet
 import me.settingdust.laven.sponge.writePacket
 import me.settingdust.laven.unwrap
-import org.h2.engine.User
-import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.spongepowered.api.Platform
@@ -27,9 +25,8 @@ import org.spongepowered.api.text.serializer.TextSerializers
 import org.spongepowered.api.world.Location
 import org.spongepowered.api.world.TeleportHelper
 import me.settingdust.nucleussync.Warps
-import me.settingdust.nucleussync.core.BungeeChannel
+import me.settingdust.nucleussync.core.PluginChannel
 import me.settingdust.nucleussync.core.sendTo
-import me.settingdust.nucleussync.core.writePluginChannel
 import me.settingdust.nucleussync.pluginName
 import java.util.*
 
@@ -38,16 +35,16 @@ import java.util.*
 @Singleton
 class ModuleWarp @Inject constructor(
     pluginContainer: PluginContainer,
-    bungeeChannel: BungeeChannel,
+    pluginChannel: PluginChannel,
     eventManager: EventManager,
     teleportHelper: TeleportHelper,
     serviceManager: ServiceManager
 ) {
-    private val bungeeCordChannel = bungeeChannel.channel
+    private val pluginChannel = pluginChannel.channel
     private val warpService = NucleusAPI.getWarpService().get()
 
     init {
-        bungeeCordChannel.addListener(Platform.Type.SERVER) { data, _, _ ->
+        this.pluginChannel.addListener(Platform.Type.SERVER) { data, _, _ ->
             data.resetRead()
             data.takeIf { data.readString() == pluginName }?.let {
                 when (data.readString()) {
@@ -87,8 +84,7 @@ class ModuleWarp @Inject constructor(
         event.apply {
             GlobalScope.launch {
                 warpService.getWarp(name).ifPresent { warp ->
-                    bungeeCordChannel.sendTo {
-                        it.writePluginChannel()
+                    pluginChannel.sendTo {
                         it.writePacket(
                             PacketWarpCreate(
                                 name,
@@ -110,8 +106,7 @@ class ModuleWarp @Inject constructor(
     private fun onUseWarp(event: NucleusWarpEvent.Use) {
         event.apply {
             GlobalScope.launch {
-                bungeeCordChannel.sendTo {
-                    it.writePluginChannel()
+                pluginChannel.sendTo {
                     it.writePacket(PacketWarpUse(name, targetUser.uniqueId))
                 }
             }

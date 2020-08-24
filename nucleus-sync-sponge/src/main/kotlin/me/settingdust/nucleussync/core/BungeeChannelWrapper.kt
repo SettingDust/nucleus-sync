@@ -8,8 +8,6 @@ import org.spongepowered.api.network.ChannelRegistrar
 import org.spongepowered.api.plugin.PluginContainer
 import me.settingdust.nucleussync.pluginName
 
-fun ChannelBuf.writePluginChannel(): ChannelBuf = this.writeString(pluginName)
-
 fun ChannelBinding.RawDataChannel.sendTo(payload: (ChannelBuf) -> Unit) = sendTo(
     if (Sponge.getServer().onlinePlayers.isEmpty())
         throw IllegalStateException("No player online")
@@ -17,9 +15,9 @@ fun ChannelBinding.RawDataChannel.sendTo(payload: (ChannelBuf) -> Unit) = sendTo
         Sponge.getServer().onlinePlayers.first(), payload
 )
 
-class BungeeChannel @Inject constructor(
+class PluginChannel @Inject constructor(
     channelRegistrar: ChannelRegistrar,
     pluginContainer: PluginContainer,
 ) {
-    val channel: ChannelBinding.RawDataChannel = channelRegistrar.getOrCreateRaw(pluginContainer, "BungeeCord")
+    val channel: ChannelBinding.RawDataChannel = channelRegistrar.getOrCreateRaw(pluginContainer, pluginName)
 }

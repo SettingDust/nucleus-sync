@@ -16,11 +16,6 @@ interface Packet {
 
 fun ByteArrayDataOutput.writePacket(packet: Packet) = packet.write(this)
 
-fun ByteArrayDataOutput.writePluginChannel(): ByteArrayDataOutput {
-    this.writeUTF(pluginName)
-    return this
-}
-
 fun ByteArrayDataOutput.writeUniqueId(uuid: UUID) {
     writeLong(uuid.mostSignificantBits)
     writeLong(uuid.leastSignificantBits)
@@ -30,4 +25,4 @@ fun ByteArrayDataInput.readUniqueId() = UUID(readLong(), readLong())
 
 fun ServerInfo.sendData(channel: String, output: ByteArrayDataOutput) = sendData(channel, output.toByteArray())
 
-fun ServerInfo.sendBungeeData(output: ByteArrayDataOutput) = sendData(bungeeChannel, output)
+fun ServerInfo.sendNucleusSyncData(output: ByteArrayDataOutput) = sendData(pluginName, output)

@@ -3,16 +3,14 @@ package me.settingdust.nucleussync.module
 import com.google.inject.Inject
 import com.google.inject.Singleton
 import io.github.nucleuspowered.nucleus.api.events.NucleusTeleportEvent
-import me.settingdust.laven.sponge.isPlayerExist
 import org.spongepowered.api.event.EventManager
-import org.spongepowered.api.event.command.SendCommandEvent
 import org.spongepowered.api.plugin.PluginContainer
-import me.settingdust.nucleussync.core.BungeeChannel
+import me.settingdust.nucleussync.core.PluginChannel
 
 @Singleton
 class ModuleTeleport @Inject constructor(
     pluginContainer: PluginContainer,
-    bungeeChannel: BungeeChannel,
+    pluginChannel: PluginChannel,
     eventManager: EventManager
 ) {
     init {

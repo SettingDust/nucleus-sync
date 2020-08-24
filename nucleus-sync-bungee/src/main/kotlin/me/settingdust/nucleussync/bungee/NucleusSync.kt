@@ -10,6 +10,8 @@ import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
 import me.settingdust.laven.ReactiveFile.subscribe
 import me.settingdust.laven.file
+import me.settingdust.nucleussync.Homes
+import me.settingdust.nucleussync.Warps
 import net.md_5.bungee.api.connection.ProxiedPlayer
 import net.md_5.bungee.api.connection.Server
 import net.md_5.bungee.api.event.PluginMessageEvent
@@ -21,23 +23,17 @@ import net.md_5.bungee.config.YamlConfiguration
 import net.md_5.bungee.event.EventHandler
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.sql.Database
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.select
-import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.transactions.transaction
-import me.settingdust.nucleussync.Homes
-import me.settingdust.nucleussync.SyncedCommands
-import me.settingdust.nucleussync.Warps
 import java.io.File
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Files
-import java.sql.DriverManager
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 
-const val pluginName = "NucleusSync"
+const val pluginName = "Nucleus Sync"
 
 
 @Suppress("UnstableApiUsage")
@@ -95,13 +91,12 @@ class NucleusSync : Plugin(), Listener {
     @EventHandler
     fun onReceiveMessage(event: PluginMessageEvent) {
         event.apply {
-            if (tag == bungeeChannel) {
+            if (tag == pluginName) {
                 val input = ByteStreams.newDataInput(data)
                 var receiverServer = receiver as? Server
                 if (receiver is ProxiedPlayer)
                     receiverServer = (receiver as ProxiedPlayer).server
-                val subchannel = input.readUTF()
-                when (subchannel) {
+                when (input.readUTF()) {
                     PacketWarpCreate.channel -> {
                         PacketWarpCreate(input)
                             .also { packet ->
@@ -123,10 +118,9 @@ class NucleusSync : Plugin(), Listener {
                                 transaction {
                                     Warps.apply {
                                         val server = proxy.getServerInfo(slice(server).select { id eq packet.name }.single()[server])
-                                        server.sendBungeeData(
+                                        server.sendNucleusSyncData(
                                             ByteStreams
                                                 .newDataOutput()
-                                                .writePluginChannel()
                                                 .writePacket(packet)
                                         )
 
@@ -155,10 +149,9 @@ class NucleusSync : Plugin(), Listener {
                                     Homes.apply {
                                         val server = proxy.getServerInfo(slice(server).select { id eq packet.name }.single()[server])
 
-                                        server.sendBungeeData(
+                                        server.sendNucleusSyncData(
                                             ByteStreams
                                                 .newDataOutput()
-                                                .writePluginChannel()
                                                 .writePacket(packet)
                                         )
 
@@ -173,10 +166,9 @@ class NucleusSync : Plugin(), Listener {
                                 proxy.servers
                                     .filterKeys { receiverServer!!.info.name != it }
                                     .forEach { (_, server) ->
-                                        server.sendBungeeData(
+                                        server.sendNucleusSyncData(
                                             ByteStreams
                                                 .newDataOutput()
-                                                .writePluginChannel()
                                                 .writePacket(packet)
                                         )
                                     }

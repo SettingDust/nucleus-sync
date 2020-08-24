@@ -10,9 +10,7 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import me.settingdust.laven.sponge.Packet
 import me.settingdust.laven.sponge.writePacket
-import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.deleteWhere
-import org.jetbrains.exposed.sql.transactions.transaction
 import org.spongepowered.api.Platform
 import org.spongepowered.api.Sponge
 import org.spongepowered.api.event.CauseStackManager
@@ -24,22 +22,21 @@ import org.spongepowered.api.service.user.UserStorageService
 import org.spongepowered.api.world.Location
 import org.spongepowered.api.world.TeleportHelper
 import me.settingdust.nucleussync.Homes
-import me.settingdust.nucleussync.core.BungeeChannel
+import me.settingdust.nucleussync.core.PluginChannel
 import me.settingdust.nucleussync.core.sendTo
-import me.settingdust.nucleussync.core.writePluginChannel
 import me.settingdust.nucleussync.pluginName
 import java.util.*
 
 @Singleton
 class ModuleHome @ExperimentalCoroutinesApi @Inject constructor(
     pluginContainer: PluginContainer,
-    bungeeChannel: BungeeChannel,
+    pluginChannel: PluginChannel,
     eventManager: EventManager,
     causeStackManager: CauseStackManager,
     teleportHelper: TeleportHelper,
     serviceManager: ServiceManager
 ) {
-    private val channel = bungeeChannel.channel
+    private val channel = pluginChannel.channel
     private val homeService = NucleusAPI.getHomeService().get()
 
     init {
@@ -87,7 +84,6 @@ class ModuleHome @ExperimentalCoroutinesApi @Inject constructor(
             GlobalScope.launch {
                 homeService.getHome(user, name).ifPresent { home ->
                     channel.sendTo {
-                        it.writePluginChannel()
                         it.writePacket(
                             PacketHomeCreate(
                                 name,
@@ -107,7 +103,6 @@ class ModuleHome @ExperimentalCoroutinesApi @Inject constructor(
     private fun onUseHome(event: NucleusHomeEvent.Use) {
         event.apply {
             channel.sendTo {
-                it.writePluginChannel()
                 it.writePacket(PacketHomeUse(name, targetUser.uniqueId))
             }
         }
