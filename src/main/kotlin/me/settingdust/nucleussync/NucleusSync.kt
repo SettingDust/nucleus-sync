@@ -2,6 +2,7 @@ package me.settingdust.nucleussync
 
 import com.google.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import me.settingdust.nucleussync.core.DatabaseService
 import org.spongepowered.api.plugin.Dependency
 import org.spongepowered.api.plugin.Plugin
 import me.settingdust.nucleussync.module.Modules
@@ -20,8 +21,12 @@ const val pluginName = "Nucleus Sync"
         Dependency(id = "nucleus")
     ]
 )
-class NucleusSync @ExperimentalCoroutinesApi @Inject constructor(modules: Modules) {
+class NucleusSync @ExperimentalCoroutinesApi @Inject constructor(
+    modules: Modules,
+    databaseService: DatabaseService,
+) {
     init {
         requireNotNull(modules)
+        requireNotNull(databaseService)
     }
 }

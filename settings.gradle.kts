@@ -10,5 +10,3 @@ pluginManagement {
 }
 
 rootProject.name = "nucleus-sync"
-include("nucleus-sync-bungee")
-include("nucleus-sync-sponge")

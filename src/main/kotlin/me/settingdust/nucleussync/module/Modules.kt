@@ -11,6 +11,7 @@ import org.spongepowered.api.event.game.state.GamePostInitializationEvent
 import org.spongepowered.api.plugin.PluginContainer
 import me.settingdust.nucleussync.config.ConfigMain
 import me.settingdust.nucleussync.core.DatabaseService
+import org.spongepowered.api.event.game.state.GameStartingServerEvent
 
 @ExperimentalCoroutinesApi
 @Singleton
@@ -18,15 +19,14 @@ import me.settingdust.nucleussync.core.DatabaseService
 class Modules @ExperimentalCoroutinesApi @Inject constructor(
     private val injector: Injector,
     private val configMain: ConfigMain,
-    private val databaseService: DatabaseService,
     pluginContainer: PluginContainer,
     eventManager: EventManager
 ) {
     init {
-        eventManager.registerListener(pluginContainer, GamePostInitializationEvent::class.java, this::onPostInit)
+        eventManager.registerListener(pluginContainer, GameStartingServerEvent::class.java, this::onStarting)
     }
 
-    private fun onPostInit(event: GamePostInitializationEvent) {
+    private fun onStarting(event: GameStartingServerEvent) {
         configMain.model.modules.apply {
             if (commandSync) requireNotNull(injector.getInstance(ModuleCommandSync::class.java))
             if (warp && NucleusAPI.getWarpService().present) requireNotNull(injector.getInstance(ModuleWarp::class.java))
