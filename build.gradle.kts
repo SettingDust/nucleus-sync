@@ -108,6 +108,7 @@ tasks {
     named<ShadowJar>("shadowJar") {
         configurations = listOf(shadow)
         archiveClassifier.set("")
+        relocate("kotlin", "$group.runtime.kotlin")
     }
     named<Jar>("jar") {
         enabled = false

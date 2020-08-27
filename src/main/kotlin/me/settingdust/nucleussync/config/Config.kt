@@ -102,11 +102,11 @@ class ConfigMain @Inject constructor(
 
     class ModelMain(var node: CommentedConfigurationNode) {
         val modules = ModelModule(node["modules"])
-        var databaseAlias: String
+        var databaseUrl: String
             set(value) {
-                node["databaseAlias"].value = value
+                node["databaseUrl"].value = value
             }
-            get() = node["databaseAlias"].getString("nucleussync")
+            get() = node["databaseUrl"].getString("nucleussync")
         var commandSync: MutableList<String>
             set(value) {
                 node["commandSync"].value = value
@@ -116,8 +116,9 @@ class ConfigMain @Inject constructor(
         init {
             node["modules"].offerComment("Have to restart after modify module settings")
             node["commandSync"].offerComment("The list of commands to sync with other server")
+            node["databaseUrl"].offerComment("JDBC url or sponge alias")
 
-            requireNotNull(databaseAlias)
+            requireNotNull(databaseUrl)
             requireNotNull(commandSync)
         }
 
