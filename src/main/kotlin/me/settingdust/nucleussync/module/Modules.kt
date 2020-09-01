@@ -6,12 +6,13 @@ import com.google.inject.Singleton
 import io.github.nucleuspowered.nucleus.api.NucleusAPI
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import me.settingdust.laven.present
-import org.spongepowered.api.event.EventManager
-import org.spongepowered.api.event.game.state.GamePostInitializationEvent
-import org.spongepowered.api.plugin.PluginContainer
+import me.settingdust.laven.sponge.get
+import me.settingdust.laven.sponge.typeTokenOf
 import me.settingdust.nucleussync.config.ConfigMain
-import me.settingdust.nucleussync.core.DatabaseService
+import org.spongepowered.api.event.EventManager
 import org.spongepowered.api.event.game.state.GameStartingServerEvent
+import org.spongepowered.api.plugin.PluginContainer
+import kotlin.concurrent.timerTask
 
 @ExperimentalCoroutinesApi
 @Singleton
@@ -28,9 +29,13 @@ class Modules @ExperimentalCoroutinesApi @Inject constructor(
 
     private fun onStarting(event: GameStartingServerEvent) {
         configMain.model.modules.apply {
-            if (commandSync) requireNotNull(injector.getInstance(ModuleCommandSync::class.java))
-            if (warp && NucleusAPI.getWarpService().present) requireNotNull(injector.getInstance(ModuleWarp::class.java))
-            if (home && NucleusAPI.getHomeService().present) requireNotNull(injector.getInstance(ModuleHome::class.java))
+            if (commandSync)
+                requireNotNull(injector[typeTokenOf<ModuleCommandSync>()])
+            if (warp && NucleusAPI.getWarpService().present)
+                requireNotNull(injector[typeTokenOf<ModuleWarp>()])
+            if (home && NucleusAPI.getHomeService().present)
+                requireNotNull(injector[typeTokenOf<ModuleHome>()])
         }
+
     }
 }

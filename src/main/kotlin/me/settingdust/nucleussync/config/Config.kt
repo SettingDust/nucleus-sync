@@ -33,6 +33,8 @@ abstract class Config(
     path: Path,
     private var loader: HoconConfigurationLoader
 ) : Closeable {
+    protected var saved = false
+
     constructor(path: Path) : this(
         path,
         HoconConfigurationLoader
@@ -54,15 +56,16 @@ abstract class Config(
         GlobalScope.launch(Dispatchers.IO) {
             channel.consumeEach {
                 node.set(it.data)
-                consumeEvent()
+                consumeEvent(it.kind, it.data)
+                if (it.kind == FileEvent.Kind.Create) saved = true
             }
         }
     }
 
-    protected abstract fun consumeEvent()
+    protected abstract fun consumeEvent(kind: FileEvent.Kind, data: CommentedConfigurationNode)
 
     fun save() {
-        loader.save(node)
+        if (!saved.also { saved = false }) loader.save(node)
     }
 
     override fun close() {
@@ -76,6 +79,7 @@ abstract class Config(
 class ConfigMain @Inject constructor(
     @DefaultConfig(sharedRoot = false) private val path: Path,
     private val injector: Injector,
+    private val databaseService: DatabaseService,
     pluginContainer: PluginContainer,
     eventManager: EventManager
 ) : Config(path) {
@@ -93,14 +97,27 @@ class ConfigMain @Inject constructor(
 
     private fun onLoadComplete(event: GameLoadCompleteEvent) = save()
 
-    override fun consumeEvent() {
+    override fun consumeEvent(kind: FileEvent.Kind, data: CommentedConfigurationNode) {
         model.node = node
         model.modules.node = node["modules"]
 
-        injector.getInstance(DatabaseService::class.java).connect()
+        databaseService.connect()
+
+        save()
     }
 
-    class ModelMain(var node: CommentedConfigurationNode) {
+    class ModelMain(node: CommentedConfigurationNode) {
+        var node = node
+            set(value) {
+                node["modules"].offerComment("Have to restart after modify module settings")
+                node["commandSync"].offerComment("The list of commands to sync with other server")
+                node["databaseUrl"].offerComment("JDBC url or sponge alias")
+
+                requireNotNull(databaseUrl)
+                requireNotNull(commandSync)
+                field = value
+            }
+
         val modules = ModelModule(node["modules"])
         var databaseUrl: String
             set(value) {
@@ -113,16 +130,17 @@ class ConfigMain @Inject constructor(
             }
             get() = node["commandSync"].getList(stringType, listOf("ban", "kick"))
 
-        init {
-            node["modules"].offerComment("Have to restart after modify module settings")
-            node["commandSync"].offerComment("The list of commands to sync with other server")
-            node["databaseUrl"].offerComment("JDBC url or sponge alias")
-
-            requireNotNull(databaseUrl)
-            requireNotNull(commandSync)
-        }
-
-        class ModelModule(var node: CommentedConfigurationNode) {
+        class ModelModule(
+            node: CommentedConfigurationNode
+        ) {
+            var node = node
+                set(value) {
+                    requireNotNull(warp)
+                    requireNotNull(tp)
+                    requireNotNull(home)
+                    requireNotNull(commandSync)
+                    field = value
+                }
             var warp
                 set(value) {
                     node["warp"].value = value
@@ -146,13 +164,6 @@ class ConfigMain @Inject constructor(
                     node["commandSync"].value = value
                 }
                 get() = node["commandSync"].getBoolean(true)
-
-            init {
-                requireNotNull(warp)
-                requireNotNull(tp)
-                requireNotNull(home)
-                requireNotNull(commandSync)
-            }
         }
     }
 }

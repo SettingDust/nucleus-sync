@@ -40,36 +40,17 @@ repositories {
 }
 
 dependencies {
-    val kotlinVersion = "1.4.0"
-    val kotlinReflect = "org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion"
-    api(kotlinReflect)
-    shadow(kotlinReflect)
-
     kapt("org.spongepowered:spongeapi:7.2.0")
-
-    implementation("org.spongepowered:spongecommon:1.12.2-7.2.2:dev")
 
     api("io.github.nucleuspowered:nucleus-api:1.14.7-SNAPSHOT-S7.1")
 
     shadow("org.bstats:bstats-sponge-lite:1.6")
 
-    val exposeVersion = "0.26.2"
-    api("org.jetbrains.exposed", "exposed-core", exposeVersion) {
-        exclude("org.jetbrains.kotlin")
-    }
-    api("org.jetbrains.exposed", "exposed-dao", exposeVersion) {
-        exclude("org.jetbrains.kotlin")
-    }
-    api("org.jetbrains.exposed", "exposed-jdbc", exposeVersion)
-    api("org.jetbrains.exposed", "exposed-jodatime", exposeVersion)
-    shadow("org.jetbrains.exposed", "exposed-core", exposeVersion)
-    shadow("org.jetbrains.exposed", "exposed-dao", exposeVersion)
-    shadow("org.jetbrains.exposed", "exposed-jdbc", exposeVersion)
-    shadow("org.jetbrains.exposed", "exposed-jodatime", exposeVersion)
-
     val laven = "me.settingdust:laven-sponge:latest"
     shadow(laven) {
         exclude("org.spongepowered")
+        exclude("org.jetbrains", "annotations")
+        exclude("org.intellij.lang", "annotations")
     }
     api(laven)
 }
@@ -93,7 +74,7 @@ publishing {
 }
 
 blossom {
-    replaceToken("@version@", version)
+    replaceToken("@version@", version, "src/main/kotlin/me/settingdust/nucleussync/NucleusSync.kt")
 }
 
 val shadow by configurations.named("shadow")
@@ -108,7 +89,9 @@ tasks {
     named<ShadowJar>("shadowJar") {
         configurations = listOf(shadow)
         archiveClassifier.set("")
-        relocate("kotlin", "$group.runtime.kotlin")
+        relocate("kotlin", "${project.group}.runtime.kotlin")
+        relocate("org.bstats", "${project.group}.runtime.bstats")
+        exclude("META-INF/**")
     }
     named<Jar>("jar") {
         enabled = false

@@ -5,50 +5,42 @@ import com.google.inject.Inject
 import com.google.inject.Singleton
 import io.github.nucleuspowered.nucleus.api.NucleusAPI
 import io.github.nucleuspowered.nucleus.api.events.NucleusHomeEvent
-import io.github.nucleuspowered.nucleus.api.nucleusdata.Home
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import me.settingdust.laven.present
-import me.settingdust.laven.sponge.Packet
-import me.settingdust.nucleussync.core.*
+import me.settingdust.laven.sponge.registerListeners
+import me.settingdust.laven.sponge.task
+import me.settingdust.nucleussync.core.BungeeCordService
+import me.settingdust.nucleussync.core.DatabaseService
 import org.spongepowered.api.Sponge
-import org.spongepowered.api.event.CauseStackManager
-import org.spongepowered.api.event.EventManager
-import org.spongepowered.api.network.ChannelBuf
-import org.spongepowered.api.plugin.PluginContainer
-import org.spongepowered.api.service.ServiceManager
-import org.spongepowered.api.world.Location
-import org.spongepowered.api.world.TeleportHelper
-import org.jetbrains.exposed.dao.id.EntityID
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.deleteWhere
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.select
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
-import org.jetbrains.exposed.sql.transactions.transaction
 import org.spongepowered.api.entity.living.player.User
 import org.spongepowered.api.event.Listener
 import org.spongepowered.api.event.cause.Cause
 import org.spongepowered.api.event.command.SendCommandEvent
-import org.spongepowered.api.event.filter.Getter
 import org.spongepowered.api.event.filter.cause.First
 import org.spongepowered.api.event.filter.type.Include
 import org.spongepowered.api.event.network.ClientConnectionEvent
-import java.util.*
-import kotlin.NoSuchElementException
+import org.spongepowered.api.plugin.PluginContainer
+import org.spongepowered.api.world.Location
+import org.spongepowered.api.world.TeleportHelper
 
+@ExperimentalCoroutinesApi
 @Singleton
 class ModuleHome @ExperimentalCoroutinesApi @Inject constructor(
-    pluginContainer: PluginContainer,
-    eventManager: EventManager,
+    private val pluginContainer: PluginContainer,
+    databaseService: DatabaseService,
     private val teleportHelper: TeleportHelper,
     private val bungeeCordService: BungeeCordService
 ) {
+    private val tableName: String = "homes"
     private val homeService = NucleusAPI.getHomeService().get()
     private val zeroLocation = Location(Sponge.getServer().worlds.first(), 0, 0, 0)
+    private val datasource = databaseService.datasource
 
     init {
-        eventManager.registerListeners(pluginContainer, this)
+        pluginContainer.registerListeners(this)
     }
 
 
@@ -57,16 +49,17 @@ class ModuleHome @ExperimentalCoroutinesApi @Inject constructor(
     fun onCreateHome(event: NucleusHomeEvent) {
         event.apply {
             GlobalScope.launch(Dispatchers.IO) {
-                runBlocking {
-                    val serverName = bungeeCordService.getServerName()
-                    transaction {
-                        Homes.apply {
-                            insertOrUpdate(server) {
-                                it[id] = EntityID(name, this)
-                                it[playerUuid] = user.uniqueId
-                                it[server] = serverName
-                            }
-                        }
+                val serverName = bungeeCordService.getServerName()
+                datasource.connection.use { connection ->
+                    connection.prepareStatement("""
+                        INSERT INTO $tableName
+                        VALUES (?, UUID_TO_BIN(?, true), ?) ON DUPLICATE KEY
+                        UPDATE `server` = '$serverName'
+                    """.trimIndent()).use {
+                        it.setString(1, name)
+                        it.setString(2, user.uniqueId.toString())
+                        it.setString(3, serverName)
+                        it.executeUpdate()
                     }
                 }
             }
@@ -74,83 +67,93 @@ class ModuleHome @ExperimentalCoroutinesApi @Inject constructor(
     }
 
     @Listener
-    fun onSendCommand(event: SendCommandEvent, @Getter("getCause") cause: Cause, @First(typeFilter = [User::class]) user: User) {
+    fun onSendCommand(event: SendCommandEvent, @First(typeFilter = [User::class]) user: User) {
         event.apply {
-            if (command == "home") {
-                transaction { syncHomes(cause, user) }
-            }
+            if (command == "home") syncHomes(cause, user)
         }
     }
 
     @Listener
     fun onDeleteHome(event: NucleusHomeEvent.Delete) {
         event.apply {
-            transaction { Homes.apply { deleteWhere { id eq name and (playerUuid eq home.ownersUniqueId) } } }
-        }
-    }
-
-    @Listener
-    fun onUseHome(event: NucleusHomeEvent.Use, @Getter("getHome") home: Home, @Getter("getName") homeName: String) {
-        GlobalScope.launch(Dispatchers.IO) {
-            newSuspendedTransaction {
-                Homes.apply {
-                    val serverName =
-                        slice(server)
-                            .select { id eq homeName and (playerUuid eq home.ownersUniqueId) }
-                            .single()[server]
-                    if (serverName != bungeeCordService.getServerName()) {
-                        bungeeCordService.connectServer(home.user.name, serverName)
-                        HomeQueue.apply {
-                            insert {
-                                it[id] = EntityID(home.ownersUniqueId, this)
-                                it[name] = homeName
-                            }
-                        }
-                    }
+            GlobalScope.launch(Dispatchers.IO) {
+                datasource.connection.use { connection ->
+                    connection.prepareStatement("""
+                        DELETE FROM $tableName
+                        WHERE id = '$name'
+                        	AND `playeruuid` = UUID_TO_BIN('${home.ownersUniqueId}', true)
+                    """.trimIndent()).use { it.executeUpdate() }
                 }
             }
         }
     }
 
     @Listener
-    fun onLogin(event: ClientConnectionEvent.Login, @Getter("getTargetUser") targetUser: User, @Getter("getCause") cause: Cause) {
-        GlobalScope.launch {
-            transaction {
+    fun onUseHome(event: NucleusHomeEvent.Use) {
+        event.apply {
+            GlobalScope.launch(Dispatchers.IO) {
+                datasource.connection.use { connection ->
+                    connection.prepareStatement("""
+                        SELECT server FROM $tableName
+                        WHERE id = '$name'
+                        	AND `playeruuid` = UUID_TO_BIN('${home.ownersUniqueId}', true)
+                    """.trimIndent())
+                        .use { it.executeQuery() }
+                        .takeIf { it.next() }
+                        ?.use { resultSet ->
+                            val serverName = resultSet.getString(1)
+                            if (serverName != bungeeCordService.getServerName()) {
+                                bungeeCordService.connectServer(home.user.name, serverName)
+                                connection.prepareStatement("""
+                                    INSERT INTO homequeue VALUES(UUID_TO_BIN('${home.ownersUniqueId}', true), '$name')
+                                """.trimIndent()).use { it.executeUpdate() }
+                            }
+                        }
+                }
+            }
+        }
+    }
+
+    @Listener
+    fun onLogin(event: ClientConnectionEvent.Login) {
+        event.apply {
+            GlobalScope.launch {
                 syncHomes(cause, targetUser)
-                HomeQueue.apply {
-                    val uniqueId = targetUser.uniqueId
-                    val where = id eq uniqueId
-                    slice(name).select { where }.singleOrNull()?.also { row ->
-                        homeService
-                            .getHome(uniqueId, row[name])
-                            .orElseThrow { NoSuchElementException("Nucleus home") }
-                            .apply { user.rotation = rotation }
-                            .run { location }
-                            .flatMap { teleportHelper.getSafeLocation(it) }
-                            .run { get() }
-                            .apply { targetUser.setLocation(position, extent.uniqueId) }
-                    }
-                    deleteWhere { where }
+                val uniqueId = targetUser.uniqueId
+                datasource.connection.use { connection ->
+                    connection.prepareStatement("SELECT name FROM homequeue WHERE id=UUID_TO_BIN('$uniqueId', true)")
+                        .use { it.executeQuery() }
+                        .takeIf { it.next() }
+                        ?.use { resultSet ->
+                            homeService
+                                .getHome(uniqueId, resultSet.getString(1))
+                                .orElseThrow { NoSuchElementException("Nucleus home") }
+                                .apply { user.rotation = rotation }
+                                .run { location.get() }
+                                .run { teleportHelper.getSafeLocation(this).orElse(this) }
+                                .apply { pluginContainer.task { targetUser.setLocation(position, extent.uniqueId) } }
+
+                            connection.prepareStatement("DELETE FROM homequeue WHERE id=UUID_TO_BIN('$uniqueId', true)")
+                                .use { it.executeUpdate() }
+                        }
                 }
             }
         }
     }
 
     private fun syncHomes(cause: Cause, user: User) {
-        Homes.apply {
-            val playerHomes = slice(id).select { playerUuid eq user.uniqueId }
-            playerHomes
-                .filterNot { homeService.getHome(user.uniqueId, it[id].value).present }
-                .forEach {
-                    homeService.createHome(cause, user, it[id].value, zeroLocation, Vector3d.UP)
-                }
+        datasource.connection.use { connection ->
+            connection.prepareStatement("SELECT id FROM homes WHERE playeruuid=UUID_TO_BIN('${user.uniqueId}', true)")
+                .use { it.executeQuery() }
+                .use { resultSet -> generateSequence { if (resultSet.next()) resultSet.getString(1) else null }.toSet() }
+                .apply {
+                    filterNot { homeService.getHome(user.uniqueId, it).present }
+                        .forEach { homeService.createHome(cause, user, it, zeroLocation, Vector3d.UP) }
 
-            homeService.getHomes(user).forEach { home ->
-                playerHomes
-                    .none { it[id].value == home.name }
-                    .takeIf { it }
-                    ?.apply { homeService.removeHome(cause, home) }
-            }
+                    homeService.getHomes(user)
+                        .filter { home -> none { it == home.name } }
+                        .forEach { home -> homeService.removeHome(cause, home) }
+                }
         }
     }
 }

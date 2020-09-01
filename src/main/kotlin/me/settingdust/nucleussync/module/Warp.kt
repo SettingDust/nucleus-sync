@@ -7,17 +7,9 @@ import io.github.nucleuspowered.nucleus.api.NucleusAPI
 import io.github.nucleuspowered.nucleus.api.events.NucleusWarpEvent
 import kotlinx.coroutines.*
 import me.settingdust.laven.present
+import me.settingdust.laven.sponge.task
 import me.settingdust.nucleussync.core.BungeeCordService
-import me.settingdust.nucleussync.core.WarpQueue
-import me.settingdust.nucleussync.core.Warps
-import org.jetbrains.exposed.dao.id.EntityID
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.deleteWhere
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.select
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
-import org.jetbrains.exposed.sql.transactions.transaction
+import me.settingdust.nucleussync.core.DatabaseService
 import org.spongepowered.api.Sponge
 import org.spongepowered.api.entity.living.player.User
 import org.spongepowered.api.event.EventManager
@@ -35,13 +27,16 @@ import org.spongepowered.api.world.TeleportHelper
 @ExperimentalCoroutinesApi
 @Singleton
 class ModuleWarp @Inject constructor(
-    pluginContainer: PluginContainer,
+    private val pluginContainer: PluginContainer,
+    databaseService: DatabaseService,
     eventManager: EventManager,
     private val teleportHelper: TeleportHelper,
     private val bungeeCordService: BungeeCordService
 ) {
+    private val tableName: String = "warps"
     private val warpService = NucleusAPI.getWarpService().get()
     private val zeroLocation = Location(Sponge.getServer().worlds.first(), 0, 0, 0)
+    private val datasource = databaseService.datasource
 
     init {
         eventManager.registerListeners(pluginContainer, this)
@@ -50,9 +45,7 @@ class ModuleWarp @Inject constructor(
     @Listener
     fun onSendCommand(event: SendCommandEvent, @Getter("getCause") cause: Cause, @First(typeFilter = [User::class]) user: User) {
         event.apply {
-            if (command == "warp") {
-                transaction { syncWarps() }
-            }
+            if (command == "warp") syncWarps()
         }
     }
 
@@ -62,10 +55,15 @@ class ModuleWarp @Inject constructor(
             GlobalScope.launch(Dispatchers.IO) {
                 runBlocking {
                     val serverName = bungeeCordService.getServerName()
-                    transaction {
-                        Warps.insert {
-                            it[id] = EntityID(name, this)
-                            it[server] = serverName
+                    datasource.connection.use { connection ->
+                        connection.prepareStatement("""
+                            INSERT INTO $tableName
+                            (id, server)
+                            VALUES (?, ?)
+                        """.trimIndent()).use {
+                            it.setString(1, name)
+                            it.setString(2, serverName)
+                            it.executeUpdate()
                         }
                     }
                 }
@@ -76,30 +74,37 @@ class ModuleWarp @Inject constructor(
     @Listener
     fun onDeleteWarp(event: NucleusWarpEvent.Delete) {
         event.apply {
-            transaction {
-                Warps.apply { deleteWhere { id eq name } }
+            GlobalScope.launch(Dispatchers.IO) {
+                datasource.connection.use { connection ->
+                    connection.prepareStatement("""
+                        DELETE FROM $tableName
+                        WHERE id = '$name'
+                    """.trimIndent()).use { it.executeUpdate() }
+                }
             }
         }
     }
 
     @Listener
     fun onUseWarp(event: NucleusWarpEvent.Use, @Getter("getTargetUser") targetUser: User, @Getter("getName") warpName: String) {
-        GlobalScope.launch(Dispatchers.IO) {
-            newSuspendedTransaction {
-                Warps.apply {
-                    val serverName =
-                        slice(server)
-                            .select { id eq warpName }
-                            .single()[server]
-                    if (serverName != bungeeCordService.getServerName()) {
-                        bungeeCordService.connectServer(targetUser.name, serverName)
-                        WarpQueue.apply {
-                            insert {
-                                it[id] = EntityID(targetUser.uniqueId, this)
-                                it[name] = warpName
+        event.apply {
+            GlobalScope.launch(Dispatchers.IO) {
+                datasource.connection.use { connection ->
+                    connection.prepareStatement("""
+                        SELECT server FROM $tableName
+                        WHERE id = '$name'
+                    """.trimIndent())
+                        .use { it.executeQuery() }
+                        .takeIf { it.next() }
+                        ?.use { resultSet ->
+                            val serverName = resultSet.getString(1)
+                            if (serverName != bungeeCordService.getServerName()) {
+                                bungeeCordService.connectServer(targetUser.name, serverName)
+                                connection.prepareStatement("""
+                                    INSERT INTO warpqueue VALUES(UUID_TO_BIN('${targetUser.uniqueId}', true), '$name')
+                                """.trimIndent()).use { it.executeUpdate() }
                             }
                         }
-                    }
                 }
             }
         }
@@ -107,43 +112,44 @@ class ModuleWarp @Inject constructor(
 
     @Listener
     fun onLogin(event: ClientConnectionEvent.Login, @Getter("getTargetUser") targetUser: User, @Getter("getCause") cause: Cause) {
-        GlobalScope.launch {
-            transaction {
+        event.apply {
+            GlobalScope.launch {
                 syncWarps()
-                WarpQueue.apply {
-                    val uniqueId = targetUser.uniqueId
-                    val where = id eq uniqueId
-                    slice(name).select { where }.singleOrNull()?.also { row ->
-                        warpService
-                            .getWarp(row[name])
-                            .orElseThrow { NoSuchElementException("Nucleus warp") }
-                            .apply { targetUser.rotation = rotation }
-                            .run { location }
-                            .flatMap { teleportHelper.getSafeLocation(it) }
-                            .run { get() }
-                            .apply { targetUser.setLocation(position, extent.uniqueId) }
-                    }
-                    deleteWhere { where }
+                val uniqueId = targetUser.uniqueId
+                datasource.connection.use { connection ->
+                    connection.prepareStatement("SELECT name FROM warpqueue WHERE id=UUID_TO_BIN('$uniqueId', true)")
+                        .use { it.executeQuery() }
+                        .takeIf { it.next() }
+                        ?.use { resultSet ->
+                            warpService
+                                .getWarp(resultSet.getString(1))
+                                .orElseThrow { NoSuchElementException("Nucleus warp") }
+                                .apply { targetUser.rotation = rotation }
+                                .run { location.get() }
+                                .run { teleportHelper.getSafeLocation(this).orElse(this) }
+                                .apply { pluginContainer.task { targetUser.setLocation(position, extent.uniqueId) } }
+
+                            connection.prepareStatement("DELETE FROM warpqueue WHERE id=UUID_TO_BIN('$uniqueId', true)")
+                                .use { it.executeUpdate() }
+                        }
                 }
             }
         }
     }
 
     private fun syncWarps() {
-        Warps.apply {
-            val warps = slice(id).selectAll()
-            warps
-                .map { it[id].value }
-                .filterNot { warpService.getWarp(it).present }
-                .forEach {
-                    warpService.setWarp(it, zeroLocation, Vector3d.UP)
+        datasource.connection.use { connection ->
+            connection.prepareStatement("SELECT id FROM warps")
+                .use { it.executeQuery() }
+                .use { resultSet -> generateSequence { if (resultSet.next()) resultSet.getString(1) else null }.toSet() }
+                .apply {
+                    filterNot { warpService.getWarp(it).present }
+                        .forEach { warpService.setWarp(it, zeroLocation, Vector3d.UP) }
+
+                    warpService.allWarps
+                        .filter { warp -> none { it == warp.name } }
+                        .forEach { warp -> warpService.removeWarp(warp.name) }
                 }
-            warpService.allWarps.forEach { warp ->
-                val name = warp.name
-                if (warps.none { it[id].value == name }) {
-                    warpService.removeWarp(name)
-                }
-            }
         }
     }
 }
